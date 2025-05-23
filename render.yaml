@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: whisper-transcriber
-    env: python
-    buildCommand: ""
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
