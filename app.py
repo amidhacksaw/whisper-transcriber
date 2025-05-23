@@ -1,58 +1,57 @@
 import os
 import tempfile
-import openai_whisper
 from flask import Flask, request, jsonify, send_file, render_template_string
-from flask_cors import CORS
-from dotenv import load_dotenv
-
-load_dotenv()
+from werkzeug.utils import secure_filename
+import openai
 
 app = Flask(__name__)
-CORS(app)
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+allowed_passwords = os.environ.get("ALLOWED_PASSWORDS", "").split(",")
 
-ALLOWED_PASSWORDS = os.getenv("ALLOWED_PASSWORDS", "").split(",")
-API_KEY = os.getenv("OPENAI_API_KEY")
-
-@app.route("/login", methods=["POST"])
+@app.route("/")
 def login():
+    return render_template_string(open("index.html", encoding="utf-8").read())
+
+@app.route("/auth", methods=["POST"])
+def auth():
     data = request.get_json()
     password = data.get("password", "")
-    if password in ALLOWED_PASSWORDS:
+    if password in allowed_passwords:
         return jsonify({"success": True})
     return jsonify({"success": False}), 401
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    if "audio" not in request.files:
-        return jsonify({"error": "No audio uploaded"}), 400
+    try:
+        file = request.files.get("audio")
+        format = request.form.get("format", "txt")
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    file = request.files["audio"]
-    format = request.form.get("format", "txt")
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(tempfile.gettempdir(), filename)
+        file.save(filepath)
 
-    with tempfile.NamedTemporaryFile(delete=False) as temp_audio:
-        file.save(temp_audio.name)
-        model = openai_whisper.load_model("base")
-        result = model.transcribe(temp_audio.name)
-        text = result["text"]
+        with open(filepath, "rb") as audio_file:
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)
 
-    if format == "srt":
-        srt_content = ""
-        lines = text.split(". ")
-        for i, line in enumerate(lines, 1):
-            srt_content += f"{i}\n00:00:{i:02d},000 --> 00:00:{i+1:02d},000\n{line.strip()}\n\n"
-        return send_file(
-            tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".srt", encoding="utf-8"),
-            mimetype="text/srt",
-            as_attachment=True,
-            download_name="result.srt"
-        )
+        content = transcript["text"]
 
-    return send_file(
-        tempfile.NamedTemporaryFile(delete=False, mode="w+", suffix=".txt", encoding="utf-8", delete=False),
-        mimetype="text/plain",
-        as_attachment=True,
-        download_name="result.txt"
-    )
+        if format == "srt":
+            lines = content.split(". ")
+            srt_content = ""
+            for i, line in enumerate(lines):
+                srt_content += f"{i+1}\n00:00:{i*2:02},000 --> 00:00:{i*2+2:02},000\n{line.strip()}\n\n"
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".srt", encoding="utf-8", delete=False) as srt_file:
+                srt_file.write(srt_content)
+                return send_file(srt_file.name, as_attachment=True)
+        else:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", encoding="utf-8", delete=False) as txt_file:
+                txt_file.write(content)
+                return send_file(txt_file.name, as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
