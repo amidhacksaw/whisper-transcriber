@@ -45,7 +45,7 @@ def transcribe():
                 file=audio_file,
                 response_format="text"
             )
-            content = transcript
+            content = transcript if isinstance(transcript, str) else str(transcript)
 
         if format == "srt":
             lines = content.strip().split('.')
