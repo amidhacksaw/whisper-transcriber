@@ -1,17 +1,17 @@
-# ✅ app.py
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
-import openai
 import tempfile
 
+from openai import OpenAI
 from dotenv import load_dotenv
+
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "https://amidhacksaw.github.io"}})
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI()
 allowed_passwords = os.getenv("ALLOWED_PASSWORDS", "").split(",")
 
 @app.route("/")
@@ -40,8 +40,12 @@ def transcribe():
 
     try:
         with open(temp_audio_path, "rb") as audio_file:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-            content = transcript["text"]
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
+            )
+            content = transcript
 
         if format == "srt":
             lines = content.strip().split('.')
@@ -50,11 +54,11 @@ def transcribe():
                 start = f"00:00:{(i-1)*3:02},000"
                 end = f"00:00:{i*3:02},000"
                 srt += f"{i}\n{start} --> {end}\n{line.strip()}\n\n"
-            return send_file(
-                tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".srt", encoding="utf-8").name,
-                as_attachment=True,
-                download_name="result.srt"
-            )
+            srt_path = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".srt", encoding="utf-8").name
+            with open(srt_path, "w", encoding="utf-8") as f:
+                f.write(srt)
+            return send_file(srt_path, as_attachment=True, download_name="result.srt")
+
         else:
             txt_path = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".txt", encoding="utf-8").name
             with open(txt_path, "w", encoding="utf-8") as f:
