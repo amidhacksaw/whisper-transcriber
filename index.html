@@ -34,6 +34,17 @@
       border: 1px solid #ccc;
       border-radius: 8px;
     }
+    input[type="file"] {
+      box-sizing: border-box;
+      background-color: white;
+      outline: none;
+      margin-top: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
     button {
       background-color: #007aff;
       color: white;
@@ -54,18 +65,17 @@
       margin-top: 1rem;
       font-weight: bold;
     }
-    #progressContainer {
+    .progress-bar {
       width: 100%;
-      background: #eee;
-      height: 10px;
-      border-radius: 5px;
+      height: 6px;
+      border-radius: 4px;
+      background: #e0e0e0;
       overflow: hidden;
       margin-top: 1rem;
-      display: none;
     }
-    #progressBar {
-      width: 0%;
+    .progress-fill {
       height: 100%;
+      width: 0%;
       background: #007aff;
       transition: width 0.3s ease;
     }
@@ -88,8 +98,8 @@
       <option value="srt">字幕檔 (.srt)</option>
     </select>
     <button onclick="transcribe()">開始轉換</button>
-    <div id="progressContainer">
-      <div id="progressBar"></div>
+    <div class="progress-bar hidden" id="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
     </div>
     <div class="error" id="upload-error" style="display: none;"></div>
     <div class="success" id="upload-success" style="display: none;"></div>
@@ -97,10 +107,6 @@
 
   <script>
     const apiBase = "https://whisper-transcriber-rml7.onrender.com";
-
-    document.getElementById("password").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") login();
-    });
 
     function login() {
       const password = document.getElementById("password").value;
@@ -130,62 +136,78 @@
         });
     }
 
+    // 支援 Enter 快速登入
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !document.getElementById("login-card").classList.contains("hidden")) {
+        login();
+      }
+    });
+
     function transcribe() {
       const audio = document.getElementById("audio").files[0];
       const format = document.getElementById("format").value;
       const errorBox = document.getElementById("upload-error");
       const successBox = document.getElementById("upload-success");
-      const progressContainer = document.getElementById("progressContainer");
-      const progressBar = document.getElementById("progressBar");
+      const progressBar = document.getElementById("progress-bar");
+      const progressFill = document.getElementById("progress-fill");
 
       errorBox.style.display = "none";
       successBox.style.display = "none";
+      progressBar.classList.remove("hidden");
+      progressFill.style.width = "0%";
 
       if (!audio) {
         errorBox.textContent = "請選擇音訊檔案";
         errorBox.style.display = "block";
+        progressBar.classList.add("hidden");
         return;
       }
+
+      // 模擬進度
+      let fakeProgress = 0;
+      const simulate = setInterval(() => {
+        fakeProgress += Math.random() * 15;
+        if (fakeProgress >= 90) {
+          clearInterval(simulate);
+        } else {
+          progressFill.style.width = `${Math.min(fakeProgress, 100)}%`;
+        }
+      }, 300);
 
       const formData = new FormData();
       formData.append("audio", audio);
       formData.append("format", format);
-
-      progressContainer.style.display = "block";
-      progressBar.style.width = "0%";
-
-      let fakeProgress = 0;
-      const interval = setInterval(() => {
-        if (fakeProgress < 95) {
-          fakeProgress += Math.random() * 2;
-          progressBar.style.width = `${fakeProgress}%`;
-        }
-      }, 300);
 
       fetch(`${apiBase}/transcribe`, {
         method: "POST",
         body: formData,
       })
         .then((res) => {
-          clearInterval(interval);
           if (!res.ok) throw new Error("轉換失敗");
           return res.blob();
         })
         .then((blob) => {
-          progressBar.style.width = "100%";
+          clearInterval(simulate);
+          progressFill.style.width = "100%";
+
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
           a.download = `transcript.${format}`;
           a.click();
+
           successBox.textContent = "✅ 下載成功";
           successBox.style.display = "block";
         })
         .catch(() => {
-          clearInterval(interval);
-          progressBar.style.background = "red";
           errorBox.textContent = "❌ 錯誤：轉換失敗";
           errorBox.style.display = "block";
+        })
+        .finally(() => {
+          setTimeout(() => {
+            progressBar.classList.add("hidden");
+            progressFill.style.width = "0%";
+          }, 2000);
         });
     }
   </script>
