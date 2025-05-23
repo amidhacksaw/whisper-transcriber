@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify, send_file, render_template_string
 import os
+from flask import Flask, request, jsonify, send_file, render_template_string
 import openai
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+# 載入 index.html 內容
 @app.route("/")
 def index():
     with open("index.html", "r", encoding="utf-8") as f:
@@ -30,17 +31,18 @@ def transcribe():
         content = transcript["text"]
 
         if format == "srt":
-            lines = content.split(". ")
-            srt_output = ""
-            for i, line in enumerate(lines):
-                srt_output += f"{i+1}\n00:00:{i:02d},000 --> 00:00:{i+1:02d},000\n{line.strip()}\n\n"
-            with open("result.srt", "w", encoding="utf-8") as f:
-                f.write(srt_output)
-            return send_file("result.srt", as_attachment=True)
+            lines = content.strip().split(".")
+            srt_content = ""
+            for i, line in enumerate(lines, 1):
+                if line.strip():
+                    srt_content += f"{i}\n00:00:{i*2:02},000 --> 00:00:{i*2+1:02},000\n{line.strip()}.\n\n"
+            with open("/tmp/result.srt", "w", encoding="utf-8") as f:
+                f.write(srt_content)
+            return send_file("/tmp/result.srt", as_attachment=True)
         else:
-            with open("result.txt", "w", encoding="utf-8") as f:
+            with open("/tmp/result.txt", "w", encoding="utf-8") as f:
                 f.write(content)
-            return send_file("result.txt", as_attachment=True)
+            return send_file("/tmp/result.txt", as_attachment=True)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -48,5 +50,7 @@ def transcribe():
         if os.path.exists(filepath):
             os.remove(filepath)
 
+# Gunicorn 將使用這個 entry point
 if __name__ == "__main__":
-    print("Flask app is running in development mode.")
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
