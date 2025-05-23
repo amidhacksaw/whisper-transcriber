@@ -1,56 +1,55 @@
 import os
-from flask import Flask, request, jsonify, send_file, render_template_string
-import openai
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
+import openai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+CORS(app)
 
-# 載入 index.html 內容
-@app.route("/")
-def index():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return render_template_string(f.read())
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    file = request.files.get("audio")
-    format = request.form.get("format", "txt")
+    if request.form.get("password") != ADMIN_PASSWORD:
+        return "Unauthorized", 401
 
-    if not file:
-        return jsonify({"error": "No file uploaded"}), 400
+    audio = request.files.get("audio")
+    fmt = request.form.get("format")
 
-    filename = secure_filename(file.filename)
+    if not audio or not fmt:
+        return "Missing audio or format", 400
+
+    filename = secure_filename(audio.filename)
     filepath = os.path.join("/tmp", filename)
-    file.save(filepath)
+    audio.save(filepath)
 
     try:
-        with open(filepath, "rb") as audio_file:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
+        with open(filepath, "rb") as f:
+            transcript = openai.Audio.transcribe("whisper-1", f)
 
         content = transcript["text"]
 
-        if format == "srt":
-            lines = content.strip().split(".")
-            srt_content = ""
-            for i, line in enumerate(lines, 1):
-                if line.strip():
-                    srt_content += f"{i}\n00:00:{i*2:02},000 --> 00:00:{i*2+1:02},000\n{line.strip()}.\n\n"
-            with open("/tmp/result.srt", "w", encoding="utf-8") as f:
-                f.write(srt_content)
-            return send_file("/tmp/result.srt", as_attachment=True)
-        else:
-            with open("/tmp/result.txt", "w", encoding="utf-8") as f:
-                f.write(content)
-            return send_file("/tmp/result.txt", as_attachment=True)
+        if fmt == "srt":
+            lines = content.split(". ")
+            srt = ""
+            for i, line in enumerate(lines):
+                start = f"00:00:{i*2:02d},000"
+                end = f"00:00:{i*2+2:02d},000"
+                srt += f"{i+1}\n{start} --> {end}\n{line.strip()}\n\n"
+            return srt, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+        return content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return f"Error: {str(e)}", 500
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
 
-# Gunicorn 將使用這個 entry point
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
