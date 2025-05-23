@@ -21,6 +21,7 @@
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       width: 90%;
       max-width: 400px;
+      box-sizing: border-box;
     }
     h2 {
       font-size: 1.5rem;
@@ -33,6 +34,7 @@
       font-size: 1rem;
       border: 1px solid #ccc;
       border-radius: 8px;
+      box-sizing: border-box;
     }
     button {
       background-color: #007aff;
@@ -58,10 +60,12 @@
 </head>
 <body>
   <div class="card" id="login-card">
-    <h2>請輸入密碼</h2>
-    <input type="password" id="password" placeholder="輸入密碼" />
-    <button onclick="login()">登入</button>
-    <div class="error" id="login-error" style="display: none;">❌ 錯誤：Load failed</div>
+    <form onsubmit="login(); return false;">
+      <h2>請輸入密碼</h2>
+      <input type="password" id="password" placeholder="輸入密碼" />
+      <button type="submit">登入</button>
+      <div class="error" id="login-error" style="display: none;">❌ 錯誤：Load failed</div>
+    </form>
   </div>
 
   <div class="card hidden" id="upload-card">
