@@ -21,6 +21,7 @@
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       width: 90%;
       max-width: 400px;
+      box-sizing: border-box;
     }
     h2 {
       font-size: 1.5rem;
@@ -29,16 +30,15 @@
     input, select, button {
       width: 100%;
       padding: 0.75rem;
-      margin-top: 0.5rem;
       font-size: 1rem;
       border: 1px solid #ccc;
       border-radius: 8px;
+      box-sizing: border-box;
     }
     input[type="file"] {
-      box-sizing: border-box;
       background-color: white;
       outline: none;
-      appearance: none;
+      margin-top: 0.5rem;
     }
     button {
       background-color: #007aff;
@@ -60,16 +60,17 @@
       margin-top: 1rem;
       font-weight: bold;
     }
-    #progressBar {
-      margin-top: 1rem;
+    progress {
       width: 100%;
+      height: 8px;
+      margin-top: 1rem;
     }
   </style>
 </head>
 <body>
   <div class="card" id="login-card">
     <h2>請輸入密碼</h2>
-    <input type="password" id="password" placeholder="輸入密碼" />
+    <input type="password" id="password" placeholder="輸入密碼" onkeydown="if(event.key==='Enter') login()" />
     <button onclick="login()">登入</button>
     <div class="error" id="login-error" style="display: none;">❌ 錯誤：Load failed</div>
   </div>
@@ -83,17 +84,13 @@
       <option value="srt">字幕檔 (.srt)</option>
     </select>
     <button onclick="transcribe()">開始轉換</button>
-    <progress id="progressBar" class="hidden" max="100" value="0"></progress>
+    <progress id="progress" value="0" max="100" style="display:none;"></progress>
     <div class="error" id="upload-error" style="display: none;"></div>
     <div class="success" id="upload-success" style="display: none;"></div>
   </div>
 
   <script>
     const apiBase = "https://whisper-transcriber-rml7.onrender.com";
-
-    document.getElementById("password").addEventListener("keydown", e => {
-      if (e.key === "Enter") login();
-    });
 
     function login() {
       const password = document.getElementById("password").value;
@@ -105,12 +102,17 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       })
-        .then((res) => res.ok ? res.json() : Promise.reject("驗證失敗"))
+        .then((res) => {
+          if (!res.ok) throw new Error("驗證失敗");
+          return res.json();
+        })
         .then((data) => {
           if (data.success) {
             document.getElementById("login-card").classList.add("hidden");
             document.getElementById("upload-card").classList.remove("hidden");
-          } else throw new Error("密碼錯誤");
+          } else {
+            throw new Error("密碼錯誤");
+          }
         })
         .catch(() => {
           errorBox.textContent = "❌ 錯誤：Load failed";
@@ -123,16 +125,14 @@
       const format = document.getElementById("format").value;
       const errorBox = document.getElementById("upload-error");
       const successBox = document.getElementById("upload-success");
-      const progressBar = document.getElementById("progressBar");
+      const progress = document.getElementById("progress");
+
       errorBox.style.display = "none";
       successBox.style.display = "none";
-      progressBar.classList.remove("hidden");
-      progressBar.value = 0;
 
       if (!audio) {
         errorBox.textContent = "請選擇音訊檔案";
         errorBox.style.display = "block";
-        progressBar.classList.add("hidden");
         return;
       }
 
@@ -140,12 +140,16 @@
       formData.append("audio", audio);
       formData.append("format", format);
 
-      // 模擬進度條
+      progress.style.display = "block";
+      progress.value = 0;
+
+      // 模擬進度
       let fakeProgress = 0;
-      const fakeTimer = setInterval(() => {
-        if (fakeProgress >= 95) return clearInterval(fakeTimer);
-        fakeProgress += Math.random() * 5;
-        progressBar.value = fakeProgress;
+      const progressInterval = setInterval(() => {
+        if (fakeProgress < 95) {
+          fakeProgress += Math.random() * 5;
+          progress.value = Math.min(fakeProgress, 95);
+        }
       }, 200);
 
       fetch(`${apiBase}/transcribe`, {
@@ -153,11 +157,13 @@
         body: formData,
       })
         .then((res) => {
-          clearInterval(fakeTimer);
-          progressBar.value = 100;
-          return res.ok ? res.blob() : Promise.reject("轉換失敗");
+          if (!res.ok) throw new Error("轉換失敗");
+          return res.blob();
         })
         .then((blob) => {
+          clearInterval(progressInterval);
+          progress.value = 100;
+
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
@@ -165,12 +171,12 @@
           a.click();
           successBox.textContent = "✅ 下載成功";
           successBox.style.display = "block";
-          progressBar.classList.add("hidden");
         })
         .catch(() => {
+          clearInterval(progressInterval);
+          progress.value = 0;
           errorBox.textContent = "❌ 錯誤：轉換失敗";
           errorBox.style.display = "block";
-          progressBar.classList.add("hidden");
         });
     }
   </script>
