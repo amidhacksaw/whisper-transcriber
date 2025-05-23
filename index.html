@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Whisper 語音轉文字</title>
+  <meta charset="UTF-8">
+  <title>Whisper 語音轉文字工具</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: "Segoe UI", sans-serif;
@@ -11,102 +11,114 @@
       margin: 0;
       padding: 2rem;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
-      min-height: 100vh;
     }
-    .container {
+    .card {
       background: white;
-      border-radius: 12px;
       padding: 2rem;
-      max-width: 600px;
-      width: 100%;
+      border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    h1 {
-      margin-top: 0;
-      font-size: 1.8rem;
-    }
-    label {
-      font-weight: bold;
-      display: block;
-      margin: 1rem 0 0.5rem;
-    }
-    select, input[type="file"] {
       width: 100%;
-      padding: 0.5rem;
-      border-radius: 6px;
+      max-width: 500px;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 0.6rem;
+      margin: 0.5rem 0 1rem;
+      border-radius: 8px;
       border: 1px solid #ccc;
+      font-size: 1rem;
     }
     button {
       background: #007bff;
       color: white;
       border: none;
-      padding: 0.7rem 1rem;
-      border-radius: 6px;
       cursor: pointer;
-      margin-top: 1rem;
-      width: 100%;
-      font-size: 1rem;
     }
     button:hover {
       background: #0056b3;
-    }
-    .preview-box {
-      margin-top: 1rem;
-      background: #f9f9f9;
-      border: 1px solid #ddd;
-      padding: 1rem;
-      border-radius: 6px;
-      max-height: 200px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      font-size: 0.9rem;
     }
     .error {
       color: red;
       font-weight: bold;
       margin-top: 1rem;
     }
+    .preview {
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      padding: 1rem;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Whisper 語音轉文字</h1>
-    <label for="audio">音檔上傳</label>
-    <input type="file" id="audio" accept=".mp3,.wav" />
-    <p style="color:red;">⚠️ 建議使用 .mp3 或 .wav 格式，避免發生錯誤。</p>
+  <div class="card" id="authCard">
+    <h2>請輸入密碼</h2>
+    <input type="password" id="passwordInput" placeholder="輸入密碼">
+    <button onclick="checkPassword()">登入</button>
+    <div class="error" id="authError"></div>
+  </div>
 
-    <label for="format">輸出格式</label>
-    <select id="format">
+  <div class="card" id="mainCard" style="display:none;">
+    <h2>Whisper 語音轉文字</h2>
+    <label>音檔上傳</label>
+    <input type="file" id="audioInput" accept=".mp3,.wav">
+    <p style="color:red;">⚠️ 建議使用 .mp3 或 .wav 格式，避免發生錯誤。</p>
+    <label>輸出格式</label>
+    <select id="formatSelect">
       <option value="txt">純文字 (.txt)</option>
       <option value="srt">字幕檔 (.srt)</option>
     </select>
-
     <button onclick="transcribe()">開始轉換</button>
-
-    <div class="preview-box" id="preview" style="display:none;"></div>
-
-    <button id="downloadBtn" style="display:none;" onclick="downloadText()">⬇️ 下載內容</button>
+    <div class="preview" id="previewBox" style="display:none;"></div>
+    <button id="downloadBtn" style="display:none;" onclick="download()">⬇️ 下載內容</button>
     <div class="error" id="errorBox"></div>
   </div>
 
   <script>
-    let transcribedContent = "";
+    let transcribed = "";
 
-    async function transcribe() {
-      const audio = document.getElementById("audio").files[0];
-      const format = document.getElementById("format").value;
-      const preview = document.getElementById("preview");
+    function checkPassword() {
+      const password = document.getElementById("passwordInput").value.trim();
+      const error = document.getElementById("authError");
+      error.textContent = "";
+      if (!password) {
+        error.textContent = "請輸入密碼";
+        return;
+      }
+
+      fetch("https://whisper-transcriber-rml7.onrender.com/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error("密碼錯誤");
+        document.getElementById("authCard").style.display = "none";
+        document.getElementById("mainCard").style.display = "block";
+      })
+      .catch(err => {
+        error.textContent = "❌ 錯誤：" + err.message;
+      });
+    }
+
+    function transcribe() {
+      const audio = document.getElementById("audioInput").files[0];
+      const format = document.getElementById("formatSelect").value;
+      const error = document.getElementById("errorBox");
+      const preview = document.getElementById("previewBox");
       const downloadBtn = document.getElementById("downloadBtn");
-      const errorBox = document.getElementById("errorBox");
 
       preview.style.display = "none";
       downloadBtn.style.display = "none";
-      errorBox.textContent = "";
+      error.textContent = "";
 
       if (!audio) {
-        errorBox.textContent = "請上傳音檔。";
+        error.textContent = "請上傳音檔";
         return;
       }
 
@@ -114,29 +126,28 @@
       formData.append("audio", audio);
       formData.append("format", format);
 
-      try {
-        const res = await fetch("https://whisper-transcriber-rml7.onrender.com/transcribe", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "轉換失敗");
-        }
-
-        transcribedContent = await res.text();
-        preview.textContent = transcribedContent;
+      fetch("https://whisper-transcriber-rml7.onrender.com/transcribe", {
+        method: "POST",
+        body: formData
+      })
+      .then(res => {
+        if (!res.ok) throw new Error("轉換失敗");
+        return res.text();
+      })
+      .then(text => {
+        transcribed = text;
+        preview.textContent = transcribed;
         preview.style.display = "block";
         downloadBtn.style.display = "inline-block";
-      } catch (err) {
-        errorBox.textContent = "❌ 錯誤：" + err.message;
-      }
+      })
+      .catch(err => {
+        error.textContent = "❌ 錯誤：" + err.message;
+      });
     }
 
-    function downloadText() {
-      const format = document.getElementById("format").value;
-      const blob = new Blob([transcribedContent], { type: "text/plain" });
+    function download() {
+      const format = document.getElementById("formatSelect").value;
+      const blob = new Blob([transcribed], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
