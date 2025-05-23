@@ -1,51 +1,52 @@
-from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
-import whisper
-import tempfile
+from flask import Flask, request, jsonify, send_file, render_template_string
 import os
-import io
+import openai
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-# 環境變數與密碼驗證
-from dotenv import load_dotenv
-load_dotenv()
-ALLOWED_PASSWORDS = os.getenv("ALLOWED_PASSWORDS", "demo123").split(",")
-
-model = whisper.load_model("base")
-
-@app.route("/verify-password", methods=["POST"])
-def verify_password():
-    password = request.form.get("password", "")
-    if password in ALLOWED_PASSWORDS:
-        return "ok"
-    return "unauthorized", 401
+@app.route("/")
+def index():
+    with open("index.html", "r", encoding="utf-8") as f:
+        return render_template_string(f.read())
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    password = request.form.get("password", "")
-    if password not in ALLOWED_PASSWORDS:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    audio = request.files.get("audio")
-    if not audio:
-        return jsonify({"error": "No audio uploaded"}), 400
-
+    file = request.files.get("audio")
     format = request.form.get("format", "txt")
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        audio.save(tmp.name)
-        result = model.transcribe(tmp.name)
-        os.unlink(tmp.name)
 
-    if format == "srt":
-        from whisper.utils import write_srt
-        srt_io = io.StringIO()
-        write_srt(result["segments"], file=srt_io)
-        srt_io.seek(0)
-        return send_file(io.BytesIO(srt_io.read().encode("utf-8")), as_attachment=True, download_name="result.srt", mimetype="text/plain")
-    else:
-        return jsonify({"text": result["text"]})
+    if not file:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join("/tmp", filename)
+    file.save(filepath)
+
+    try:
+        with open(filepath, "rb") as audio_file:
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)
+
+        content = transcript["text"]
+
+        if format == "srt":
+            lines = content.split(". ")
+            srt_output = ""
+            for i, line in enumerate(lines):
+                srt_output += f"{i+1}\n00:00:{i:02d},000 --> 00:00:{i+1:02d},000\n{line.strip()}\n\n"
+            with open("result.srt", "w", encoding="utf-8") as f:
+                f.write(srt_output)
+            return send_file("result.srt", as_attachment=True)
+        else:
+            with open("result.txt", "w", encoding="utf-8") as f:
+                f.write(content)
+            return send_file("result.txt", as_attachment=True)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000)
