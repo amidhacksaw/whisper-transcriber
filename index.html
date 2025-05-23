@@ -2,89 +2,146 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Whisper 語音轉文字</title>
   <style>
     body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: #f7f7f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
       margin: 0;
-      font-family: sans-serif;
-      background: #f4f4f4;
     }
     .card {
-      max-width: 400px;
-      margin: 100px auto;
       background: white;
-      padding: 2em;
+      padding: 2rem;
       border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 400px;
     }
     h2 {
-      margin-top: 0;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
     }
     input, select, button {
       width: 100%;
-      padding: 0.75em;
-      margin: 0.5em 0;
-      font-size: 1em;
-      border-radius: 6px;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      font-size: 1rem;
       border: 1px solid #ccc;
+      border-radius: 8px;
     }
     button {
-      background: #007bff;
+      background-color: #007aff;
       color: white;
       border: none;
-      cursor: pointer;
+      margin-top: 1.5rem;
     }
-    button:hover {
-      background: #0056b3;
+    .hidden {
+      display: none;
     }
     .error {
       color: red;
-      margin-top: 1em;
-      display: flex;
-      align-items: center;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      margin-top: 1rem;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-
   <div class="card" id="login-card">
     <h2>請輸入密碼</h2>
-    <input type="password" id="password-input" placeholder="輸入密碼" />
+    <input type="password" id="password" placeholder="輸入密碼" />
     <button onclick="login()">登入</button>
-    <div class="error" id="error-message" style="display:none;">❌ 錯誤：Load failed</div>
+    <div class="error" id="login-error" style="display: none;">❌ 錯誤：Load failed</div>
+  </div>
+
+  <div class="card hidden" id="upload-card">
+    <h2>Whisper 語音轉文字</h2>
+    <input type="file" id="audio" accept=".mp3,.wav" />
+    <small>⚠️ 建議使用 .mp3 或 .wav 格式，請先轉檔再上傳。</small>
+    <select id="format">
+      <option value="txt">純文字 (.txt)</option>
+      <option value="srt">字幕檔 (.srt)</option>
+    </select>
+    <button onclick="transcribe()">開始轉換</button>
+    <div class="error" id="upload-error" style="display: none;"></div>
+    <div class="success" id="upload-success" style="display: none;"></div>
   </div>
 
   <script>
-    const API_URL = "https://whisper-transcriber-rml7.onrender.com"; // 
-    const ADMIN_URL = `${API_URL}/admin`;
+    const apiBase = "https://whisper-transcriber-rml7.onrender.com";
 
-    async function login() {
-      const password = document.getElementById("password-input").value;
-      const errorDiv = document.getElementById("error-message");
-      errorDiv.style.display = "none";
-
-      try {
-        const res = await fetch(ADMIN_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ password })
+    function login() {
+      const password = document.getElementById("password").value;
+      fetch(`${apiBase}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("驗證失敗");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.success) {
+            document.getElementById("login-card").classList.add("hidden");
+            document.getElementById("upload-card").classList.remove("hidden");
+          } else {
+            throw new Error("密碼錯誤");
+          }
+        })
+        .catch(() => {
+          document.getElementById("login-error").style.display = "block";
         });
+    }
 
-        const data = await res.json();
-        if (res.ok && data.success) {
-          localStorage.setItem("access_granted", "true");
-          location.href = API_URL + "/"; // 導向到後端 index.html
-        } else {
-          errorDiv.textContent = "❌ 錯誤：密碼錯誤";
-          errorDiv.style.display = "block";
-        }
-      } catch (err) {
-        errorDiv.textContent = "❌ 錯誤：Load failed";
-        errorDiv.style.display = "block";
+    function transcribe() {
+      const audio = document.getElementById("audio").files[0];
+      const format = document.getElementById("format").value;
+      const errorBox = document.getElementById("upload-error");
+      const successBox = document.getElementById("upload-success");
+      errorBox.style.display = "none";
+      successBox.style.display = "none";
+
+      if (!audio) {
+        errorBox.textContent = "請選擇音訊檔案";
+        errorBox.style.display = "block";
+        return;
       }
+
+      const formData = new FormData();
+      formData.append("audio", audio);
+      formData.append("format", format);
+
+      fetch(`${apiBase}/transcribe`, {
+        method: "POST",
+        body: formData,
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("轉換失敗");
+          return res.blob();
+        })
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `transcript.${format}`;
+          a.click();
+          successBox.textContent = "✅ 下載成功";
+          successBox.style.display = "block";
+        })
+        .catch(() => {
+          errorBox.textContent = "❌ 錯誤：轉換失敗";
+          errorBox.style.display = "block";
+        });
     }
   </script>
 </body>
