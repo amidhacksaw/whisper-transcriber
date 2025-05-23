@@ -62,6 +62,7 @@ def transcribe():
             return send_file(txt_path, as_attachment=True, download_name="result.txt")
 
     except Exception as e:
+        print("❌ Transcribe error:", str(e))
         return jsonify({"error": str(e)}), 500
     finally:
         if os.path.exists(temp_audio_path):
