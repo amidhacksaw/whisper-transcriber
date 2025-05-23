@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "https://amidhacksaw.github.io"}})
+CORS(app, origins=["https://amidhacksaw.github.io"], supports_credentials=True)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 allowed_passwords = os.getenv("ALLOWED_PASSWORDS", "").split(",")
