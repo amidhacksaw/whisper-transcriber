@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Whisper 語音轉文字工具</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    input[type="file"], select, button {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    .preview-box {
+      white-space: pre-wrap;
+      background: #f8f8f8;
+      padding: 1rem;
+      border-radius: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 1rem;
+      border: 1px solid #ccc;
+    }
+    .hint {
+      color: red;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Whisper 語音轉文字</h1>
+
+    <label for="audioFile">音檔上傳</label>
+    <input type="file" id="audioFile" accept="audio/*" />
+    <div class="hint">⚠️ 建議使用 .mp3 或 .wav 格式，避免發生錯誤。請先轉檔再上傳。</div>
+
+    <label for="format">輸出格式</label>
+    <select id="format">
+      <option value="txt">純文字 (.txt)</option>
+      <option value="srt">字幕檔 (.srt)</option>
+    </select>
+
+    <button onclick="transcribe()">開始轉換</button>
+
+    <div id="previewBox" class="preview-box" style="display:none;"></div>
+    <button id="downloadBtn" onclick="downloadResult()" style="display:none;">⬇️ 下載內容</button>
+
+    <div id="resultMsg" style="color:red; margin-top: 1rem;"></div>
+  </div>
+
+  <script>
+    const API_URL = "https://whisper-transcriber-api.onrender.com/transcribe";
+    let currentText = "";
+
+    function transcribe() {
+      const file = document.getElementById("audioFile").files[0];
+      const format = document.getElementById("format").value;
+      const resultMsg = document.getElementById("resultMsg");
+      const preview = document.getElementById("previewBox");
+      const downloadBtn = document.getElementById("downloadBtn");
+
+      resultMsg.textContent = "";
+      preview.style.display = "none";
+      downloadBtn.style.display = "none";
+
+      if (!file) {
+        resultMsg.textContent = "請選擇音檔。";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("format", format);
+      formData.append("password", "1234"); // 預設密碼
+
+      fetch(API_URL, {
+        method: "POST",
+        body: formData,
+      })
+        .then(res => {
+          if (!res.ok) throw new Error("轉換失敗");
+          return format === "txt" ? res.text() : res.blob();
+        })
+        .then(data => {
+          if (format === "txt") {
+            currentText = data;
+            preview.textContent = currentText;
+            preview.style.display = "block";
+            downloadBtn.style.display = "inline-block";
+          } else {
+            const blob = new Blob([data], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "result.srt";
+            link.click();
+          }
+        })
+        .catch(err => {
+          resultMsg.textContent = `❌ 錯誤：${err.message}`;
+        });
+    }
+
+    function downloadResult() {
+      const blob = new Blob([currentText], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "result.txt";
+      link.click();
+    }
+  </script>
+</body>
+</html>
