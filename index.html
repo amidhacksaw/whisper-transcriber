@@ -39,6 +39,7 @@
       color: white;
       border: none;
       margin-top: 1.5rem;
+      cursor: pointer;
     }
     .hidden {
       display: none;
@@ -81,7 +82,10 @@
 
     function login() {
       const password = document.getElementById("password").value;
-      fetch(`${apiBase}/verify`, {
+      const errorBox = document.getElementById("login-error");
+      errorBox.style.display = "none";
+
+      fetch(`${apiBase}/admin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -99,7 +103,8 @@
           }
         })
         .catch(() => {
-          document.getElementById("login-error").style.display = "block";
+          errorBox.textContent = "❌ 錯誤：Load failed";
+          errorBox.style.display = "block";
         });
     }
 
