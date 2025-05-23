@@ -1,34 +1,33 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>Whisper 語音轉文字工具</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Whisper 語音轉文字</title>
   <style>
     body {
-      font-family: "Segoe UI", sans-serif;
-      background: #f4f4f4;
       margin: 0;
-      padding: 2rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      font-family: sans-serif;
+      background: #f4f4f4;
     }
     .card {
+      max-width: 400px;
+      margin: 100px auto;
       background: white;
-      padding: 2rem;
+      padding: 2em;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      width: 100%;
-      max-width: 500px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-top: 0;
     }
     input, select, button {
       width: 100%;
-      padding: 0.6rem;
-      margin: 0.5rem 0 1rem;
-      border-radius: 8px;
+      padding: 0.75em;
+      margin: 0.5em 0;
+      font-size: 1em;
+      border-radius: 6px;
       border: 1px solid #ccc;
-      font-size: 1rem;
     }
     button {
       background: #007bff;
@@ -41,119 +40,51 @@
     }
     .error {
       color: red;
-      font-weight: bold;
-      margin-top: 1rem;
-    }
-    .preview {
-      background: #f9f9f9;
-      border: 1px solid #ccc;
-      padding: 1rem;
-      border-radius: 8px;
-      white-space: pre-wrap;
-      max-height: 200px;
-      overflow-y: auto;
+      margin-top: 1em;
+      display: flex;
+      align-items: center;
     }
   </style>
 </head>
 <body>
-  <div class="card" id="authCard">
-    <h2>請輸入密碼</h2>
-    <input type="password" id="passwordInput" placeholder="輸入密碼">
-    <button onclick="checkPassword()">登入</button>
-    <div class="error" id="authError"></div>
-  </div>
 
-  <div class="card" id="mainCard" style="display:none;">
-    <h2>Whisper 語音轉文字</h2>
-    <label>音檔上傳</label>
-    <input type="file" id="audioInput" accept=".mp3,.wav">
-    <p style="color:red;">⚠️ 建議使用 .mp3 或 .wav 格式，避免發生錯誤。</p>
-    <label>輸出格式</label>
-    <select id="formatSelect">
-      <option value="txt">純文字 (.txt)</option>
-      <option value="srt">字幕檔 (.srt)</option>
-    </select>
-    <button onclick="transcribe()">開始轉換</button>
-    <div class="preview" id="previewBox" style="display:none;"></div>
-    <button id="downloadBtn" style="display:none;" onclick="download()">⬇️ 下載內容</button>
-    <div class="error" id="errorBox"></div>
+  <div class="card" id="login-card">
+    <h2>請輸入密碼</h2>
+    <input type="password" id="password-input" placeholder="輸入密碼" />
+    <button onclick="login()">登入</button>
+    <div class="error" id="error-message" style="display:none;">❌ 錯誤：Load failed</div>
   </div>
 
   <script>
-    let transcribed = "";
+    const API_URL = "https://whisper-transcriber-xxxxx.onrender.com"; // ⬅️ 請替換成你的 Render URL
+    const ADMIN_URL = `${API_URL}/admin`;
 
-    function checkPassword() {
-      const password = document.getElementById("passwordInput").value.trim();
-      const error = document.getElementById("authError");
-      error.textContent = "";
-      if (!password) {
-        error.textContent = "請輸入密碼";
-        return;
+    async function login() {
+      const password = document.getElementById("password-input").value;
+      const errorDiv = document.getElementById("error-message");
+      errorDiv.style.display = "none";
+
+      try {
+        const res = await fetch(ADMIN_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          localStorage.setItem("access_granted", "true");
+          location.href = API_URL + "/"; // 導向到後端 index.html
+        } else {
+          errorDiv.textContent = "❌ 錯誤：密碼錯誤";
+          errorDiv.style.display = "block";
+        }
+      } catch (err) {
+        errorDiv.textContent = "❌ 錯誤：Load failed";
+        errorDiv.style.display = "block";
       }
-
-      fetch("https://whisper-transcriber-rml7.onrender.com/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error("密碼錯誤");
-        document.getElementById("authCard").style.display = "none";
-        document.getElementById("mainCard").style.display = "block";
-      })
-      .catch(err => {
-        error.textContent = "❌ 錯誤：" + err.message;
-      });
-    }
-
-    function transcribe() {
-      const audio = document.getElementById("audioInput").files[0];
-      const format = document.getElementById("formatSelect").value;
-      const error = document.getElementById("errorBox");
-      const preview = document.getElementById("previewBox");
-      const downloadBtn = document.getElementById("downloadBtn");
-
-      preview.style.display = "none";
-      downloadBtn.style.display = "none";
-      error.textContent = "";
-
-      if (!audio) {
-        error.textContent = "請上傳音檔";
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("audio", audio);
-      formData.append("format", format);
-
-      fetch("https://whisper-transcriber-rml7.onrender.com/transcribe", {
-        method: "POST",
-        body: formData
-      })
-      .then(res => {
-        if (!res.ok) throw new Error("轉換失敗");
-        return res.text();
-      })
-      .then(text => {
-        transcribed = text;
-        preview.textContent = transcribed;
-        preview.style.display = "block";
-        downloadBtn.style.display = "inline-block";
-      })
-      .catch(err => {
-        error.textContent = "❌ 錯誤：" + err.message;
-      });
-    }
-
-    function download() {
-      const format = document.getElementById("formatSelect").value;
-      const blob = new Blob([transcribed], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = format === "txt" ? "result.txt" : "result.srt";
-      a.click();
-      URL.revokeObjectURL(url);
     }
   </script>
 </body>
