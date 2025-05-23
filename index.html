@@ -14,6 +14,7 @@
       height: 100vh;
       margin: 0;
     }
+
     .card {
       background: white;
       padding: 2rem;
@@ -23,10 +24,12 @@
       max-width: 400px;
       box-sizing: border-box;
     }
+
     h2 {
       font-size: 1.5rem;
       margin-bottom: 1rem;
     }
+
     input, select, button {
       width: 100%;
       padding: 0.75rem;
@@ -35,37 +38,47 @@
       border-radius: 8px;
       box-sizing: border-box;
     }
+
     input[type="file"] {
       background-color: white;
       outline: none;
       margin-top: 0.5rem;
+      padding: 0.75rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
     }
+
     button {
-  background-color: #007aff;
-  color: white;
-  border: none;
-  margin-top: 1.5rem;
-  cursor: pointer;
-}
+      background-color: #007aff;
+      color: white;
+      border: none;
+      margin-top: 1.5rem;
+      cursor: pointer;
+    }
 
-small {
-  display: block;
-  margin-bottom: 0.75rem;
-}
+    small {
+      display: block;
+      margin: 0.75rem 0;
+    }
 
-.hidden {
-  display: none;
-}
+    .hidden {
+      display: none;
+    }
+
     .error {
       color: red;
       margin-top: 1rem;
       font-weight: bold;
     }
+
     .success {
       color: green;
       margin-top: 1rem;
       font-weight: bold;
     }
+
     progress {
       width: 100%;
       height: 8px;
@@ -149,7 +162,6 @@ small {
       progress.style.display = "block";
       progress.value = 0;
 
-      // 模擬進度
       let fakeProgress = 0;
       const progressInterval = setInterval(() => {
         if (fakeProgress < 95) {
